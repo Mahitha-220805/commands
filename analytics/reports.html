@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports & Analytics — Wallet</title>
+  <link rel="stylesheet" href="../styles.css">
+  <script src="../auth.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    .reports-container { max-width: 720px; margin: 0 auto; }
+    .reports-section { margin-bottom: 2rem; }
+    .reports-section h2 { font-size: 1.125rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-primary); }
+    .reports-section .subtitle { color: var(--text-secondary); font-size: 0.9375rem; margin-bottom: 1rem; }
+    .report-filters { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
+    .report-filters label { font-size: 0.875rem; color: var(--text-secondary); }
+    .report-filters select, .report-filters input { padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-input); color: var(--text-primary); font-size: 0.9375rem; }
+    .chart-wrap { position: relative; height: 280px; margin: 1rem 0; }
+    .category-table { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+    .category-table th, .category-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+    .category-table th { color: var(--text-secondary); font-weight: 500; font-size: 0.8125rem; }
+    .category-table .amount { font-weight: 600; color: var(--accent-deep); }
+    .export-buttons { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem; }
+    .btn-export { padding: 0.6rem 1.25rem; border-radius: 12px; font-size: 0.9375rem; font-weight: 600; cursor: pointer; font-family: inherit; border: none; }
+    .btn-csv { background: rgba(232, 160, 176, 0.25); color: var(--accent-deep); }
+    .btn-csv:hover { background: rgba(232, 160, 176, 0.4); }
+    .btn-pdf { background: linear-gradient(145deg, var(--accent), var(--accent-deep)); color: #fff; }
+    .btn-pdf:hover { opacity: 0.95; }
+    .reports-loading, .reports-error, .reports-empty { text-align: center; color: var(--text-secondary); padding: 1.5rem; font-size: 0.9375rem; }
+    .reports-error { color: var(--error); }
+    .date-range { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .date-range input { padding: 0.5rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-input); color: var(--text-primary); }
+  </style>
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-container">
+      <a href="../login.html" class="back-link">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        Back
+      </a>
+
+      <div class="logo">
+        <div class="logo-icon">W</div>
+        <span class="logo-text">Wallet</span>
+      </div>
+
+      <div class="auth-card reports-container">
+        <h1>Reports & Analytics</h1>
+        <p class="subtitle">Charts and downloadable reports</p>
+
+        <div class="reports-section">
+          <h2>Spending by category</h2>
+          <div class="report-filters">
+            <label>Period:</label>
+            <select id="category-period">
+              <option value="month">This month</option>
+              <option value="year">This year</option>
+            </select>
+            <select id="category-month" style="display: none;"></select>
+            <select id="category-year"></select>
+          </div>
+          <div id="category-loading" class="reports-loading">Loading…</div>
+          <div id="category-empty" class="reports-empty" style="display: none;">No spending in this period.</div>
+          <div class="chart-wrap" id="pie-chart-wrap" style="display: none;">
+            <canvas id="pie-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="reports-section">
+          <h2>Monthly trend</h2>
+          <div class="report-filters">
+            <label>Year:</label>
+            <select id="trend-year"></select>
+          </div>
+          <div id="trend-loading" class="reports-loading">Loading…</div>
+          <div id="trend-empty" class="reports-empty" style="display: none;">No data for this year.</div>
+          <div class="chart-wrap" id="trend-chart-wrap" style="display: none;">
+            <canvas id="trend-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="reports-section">
+          <h2>Category analysis</h2>
+          <div id="analysis-loading" class="reports-loading">Loading…</div>
+          <div id="analysis-empty" class="reports-empty" style="display: none;">No data.</div>
+          <div id="analysis-content" style="display: none;">
+            <table class="category-table">
+              <thead>
+                <tr><th>Category</th><th>Total</th><th>%</th></tr>
+              </thead>
+              <tbody id="analysis-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="reports-section">
+          <h2>Export report</h2>
+          <p class="subtitle">Download expenses as CSV or PDF</p>
+          <div class="date-range">
+            <label>From</label>
+            <input type="date" id="export-from">
+            <label>To</label>
+            <input type="date" id="export-to">
+          </div>
+          <div class="export-buttons">
+            <button type="button" class="btn-export btn-csv" id="btn-export-csv">Export CSV</button>
+            <button type="button" class="btn-export btn-pdf" id="btn-export-pdf">Export PDF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="charts.js"></script>
+  <script>
+    (function () {
+      if (!isLoggedIn()) {
+        window.location.href = '../login.html';
+        return;
+      }
+
+      var now = new Date();
+      var currentYear = now.getFullYear();
+      var currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
+      var today = now.toISOString().slice(0, 10);
+      var firstDay = currentYear + '-' + currentMonth + '-01';
+
+      var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      for (var m = 1; m <= 12; m++) {
+        var mm = m.toString().padStart(2, '0');
+        var opt = document.createElement('option');
+        opt.value = mm;
+        opt.textContent = monthNames[m - 1];
+        if (m === parseInt(currentMonth, 10)) opt.selected = true;
+        document.getElementById('category-month').appendChild(opt);
+      }
+      for (var y = currentYear; y >= currentYear - 5; y--) {
+        var opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        if (y === currentYear) opt.selected = true;
+        document.getElementById('trend-year').appendChild(opt);
+        document.getElementById('category-year').appendChild(opt.cloneNode(true));
+      }
+      document.getElementById('export-from').value = firstDay;
+      document.getElementById('export-to').value = today;
+
+      document.getElementById('category-period').addEventListener('change', function () {
+        var isMonth = this.value === 'month';
+        document.getElementById('category-month').style.display = isMonth ? 'inline-block' : 'none';
+        loadCategoryData();
+      });
+      document.getElementById('category-month').addEventListener('change', loadCategoryData);
+      document.getElementById('category-year').addEventListener('change', loadCategoryData);
+      document.getElementById('trend-year').addEventListener('change', loadTrendData);
+
+      function loadCategoryData() {
+        var period = document.getElementById('category-period').value;
+        var year = document.getElementById('category-year').value;
+        var monthSelect = document.getElementById('category-month');
+        var month = year + '-' + (monthSelect ? monthSelect.value : currentMonth);
+        var url = '/reports/category?';
+        if (period === 'month') url += 'month=' + encodeURIComponent(month);
+        else url += 'year=' + encodeURIComponent(year);
+
+        document.getElementById('category-loading').style.display = 'block';
+        document.getElementById('category-empty').style.display = 'none';
+        document.getElementById('pie-chart-wrap').style.display = 'none';
+
+        apiRequest(url).then(function (data) {
+          document.getElementById('category-loading').style.display = 'none';
+          if (!data.data || data.data.length === 0) {
+            document.getElementById('category-empty').style.display = 'block';
+            return;
+          }
+          document.getElementById('pie-chart-wrap').style.display = 'block';
+          if (typeof ReportsCharts !== 'undefined') {
+            ReportsCharts.initPieChart('pie-chart', data.data);
+          }
+          renderAnalysisTable(data.data);
+        }).catch(showCategoryError);
+      }
+
+      function loadTrendData() {
+        var year = document.getElementById('trend-year').value;
+        document.getElementById('trend-loading').style.display = 'block';
+        document.getElementById('trend-empty').style.display = 'none';
+        document.getElementById('trend-chart-wrap').style.display = 'none';
+
+        apiRequest('/reports/monthly?year=' + encodeURIComponent(year)).then(function (data) {
+          document.getElementById('trend-loading').style.display = 'none';
+          if (!data.data || data.data.every(function (d) { return d.total === 0; })) {
+            document.getElementById('trend-empty').style.display = 'block';
+            return;
+          }
+          document.getElementById('trend-chart-wrap').style.display = 'block';
+          if (typeof ReportsCharts !== 'undefined') {
+            ReportsCharts.initTrendChart('trend-chart', data.data);
+          }
+        }).catch(function (err) {
+          document.getElementById('trend-loading').style.display = 'none';
+          document.getElementById('trend-empty').style.display = 'block';
+          document.getElementById('trend-empty').textContent = err.error || 'Could not load.';
+        });
+      }
+
+      function showCategoryError(err) {
+        document.getElementById('category-loading').style.display = 'none';
+        document.getElementById('category-empty').style.display = 'block';
+        document.getElementById('category-empty').textContent = err.error || 'Could not load.';
+      }
+
+      function renderAnalysisTable(categoryData) {
+        var total = categoryData.reduce(function (s, d) { return s + d.total; }, 0);
+        document.getElementById('analysis-loading').style.display = 'none';
+        if (!categoryData || categoryData.length === 0) {
+          document.getElementById('analysis-empty').style.display = 'block';
+          document.getElementById('analysis-content').style.display = 'none';
+          return;
+        }
+        document.getElementById('analysis-empty').style.display = 'none';
+        document.getElementById('analysis-content').style.display = 'block';
+        function fmt(n) { return '$' + Number(n).toFixed(2); }
+        var rows = categoryData.map(function (d) {
+          var pct = total > 0 ? ((d.total / total) * 100).toFixed(1) : '0';
+          return '<tr><td>' + d.category + '</td><td class="amount">' + fmt(d.total) + '</td><td>' + pct + '%</td></tr>';
+        }).join('');
+        document.getElementById('analysis-tbody').innerHTML = rows;
+      }
+
+      loadCategoryData();
+      loadTrendData();
+
+      function fetchExportData() {
+        var from = document.getElementById('export-from').value;
+        var to = document.getElementById('export-to').value;
+        return apiRequest('/reports/export?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to));
+      }
+
+      document.getElementById('btn-export-csv').addEventListener('click', function () {
+        fetchExportData().then(function (data) {
+          var rows = ['Date,Category,Amount,Description'];
+          (data.expenses || []).forEach(function (e) {
+            rows.push([e.date, '"' + (e.category || '').replace(/"/g, '""') + '"', e.amount, '"' + (e.description || '').replace(/"/g, '""') + '"'].join(','));
+          });
+          rows.push('');
+          rows.push('Summary,Total,' + (data.summary && data.summary.total != null ? data.summary.total : ''));
+          var csv = rows.join('\r\n');
+          var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+          var link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = 'wallet-expenses-' + (data.summary && data.summary.from ? data.summary.from : 'export') + '.csv';
+          link.click();
+          URL.revokeObjectURL(link.href);
+        }).catch(function (err) { alert(err.error || 'Export failed.'); });
+      });
+
+      document.getElementById('btn-export-pdf').addEventListener('click', function () {
+        fetchExportData().then(function (data) {
+          var JsPDF = window.jspdf && window.jspdf.jsPDF;
+          if (!JsPDF) {
+            alert('PDF library not loaded.');
+            return;
+          }
+          var doc = new JsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+          var y = 40;
+          doc.setFontSize(18);
+          doc.text('Expense Report', 40, y);
+          y += 24;
+          if (data.summary) {
+            doc.setFontSize(11);
+            doc.text('Period: ' + (data.summary.from || '') + ' to ' + (data.summary.to || ''), 40, y);
+            y += 20;
+            doc.text('Total: $' + (data.summary.total != null ? data.summary.total.toFixed(2) : '0.00'), 40, y);
+            y += 28;
+          }
+          doc.setFontSize(12);
+          doc.text('Expenses', 40, y);
+          y += 18;
+          doc.setFontSize(9);
+          (data.expenses || []).slice(0, 50).forEach(function (e) {
+            if (y > 750) return;
+            doc.text(e.date || '', 40, y);
+            doc.text(e.category || '', 120, y);
+            doc.text('$' + (e.amount != null ? e.amount.toFixed(2) : '0.00'), 220, y);
+            doc.text((e.description || '').slice(0, 40), 280, y);
+            y += 16;
+          });
+          if ((data.expenses || []).length > 50) {
+            y += 8;
+            doc.setFontSize(9);
+            doc.text('... and ' + (data.expenses.length - 50) + ' more', 40, y);
+          }
+          doc.save('wallet-report-' + (data.summary && data.summary.from ? data.summary.from : 'export') + '.pdf');
+        }).catch(function (err) { alert(err.error || 'Export failed.'); });
+      });
+    })();
+  </script>
+</body>
+</html>

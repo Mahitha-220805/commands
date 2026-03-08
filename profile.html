@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile — Wallet</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="auth.js"></script>
+  <style>
+    .profile-card { max-width: 440px; margin: 0 auto; }
+    .profile-card h1 { margin-bottom: 0.25rem; }
+    .profile-card .subtitle { color: var(--text-secondary); font-size: 0.9375rem; margin-bottom: 1.5rem; }
+    .profile-row { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
+    .profile-row:last-of-type { border-bottom: none; }
+    .profile-label { font-size: 0.875rem; color: var(--text-secondary); }
+    .profile-value { font-weight: 500; }
+    .profile-actions { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem; }
+    .profile-actions .btn-secondary { padding: 0.75rem 1.5rem; background: transparent; border: 1px solid var(--border); border-radius: 12px; color: var(--text-primary); font-size: 1rem; font-weight: 600; font-family: inherit; cursor: pointer; text-decoration: none; text-align: center; transition: border-color 0.2s, background 0.2s; }
+    .profile-actions .btn-secondary:hover { border-color: var(--accent); background: rgba(232, 160, 176, 0.15); }
+    .profile-loading, .profile-error { text-align: center; color: var(--text-secondary); padding: 2rem; }
+    .profile-error { color: var(--error); }
+  </style>
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-container">
+      <a href="index.html" class="back-link">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        Back
+      </a>
+
+      <div class="logo">
+        <div class="logo-icon">W</div>
+        <span class="logo-text">Wallet</span>
+      </div>
+
+      <div class="auth-card profile-card">
+        <h1>Profile</h1>
+        <p class="subtitle">Your account details</p>
+
+        <div id="profile-loading" class="profile-loading">Loading…</div>
+        <div id="profile-error" class="profile-error" style="display: none;"></div>
+        <div id="profile-content" style="display: none;">
+          <div class="profile-row">
+            <span class="profile-label">Name</span>
+            <span class="profile-value" id="profile-name"></span>
+          </div>
+          <div class="profile-row">
+            <span class="profile-label">Email</span>
+            <span class="profile-value" id="profile-email"></span>
+          </div>
+          <div class="profile-row">
+            <span class="profile-label">Member since</span>
+            <span class="profile-value" id="profile-created"></span>
+          </div>
+          <div class="profile-actions">
+            <a href="index.html" class="btn-secondary">Home</a>
+            <a href="expenseList.html" class="btn-secondary">Expenses</a>
+            <a href="budget.html" class="btn-secondary">Budget</a>
+            <a href="analytics/reports.html" class="btn-secondary">Reports</a>
+            <a href="admin/dashboard.html" class="btn-secondary">Admin</a>
+            <a href="#" id="profile-logout" class="btn-secondary">Log out</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      if (!isLoggedIn()) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      const loadingEl = document.getElementById('profile-loading');
+      const errorEl = document.getElementById('profile-error');
+      const contentEl = document.getElementById('profile-content');
+
+      apiRequest('/profile')
+        .then(function (data) {
+          loadingEl.style.display = 'none';
+          contentEl.style.display = 'block';
+          const u = data.user;
+          document.getElementById('profile-name').textContent = u.name;
+          document.getElementById('profile-email').textContent = u.email;
+          document.getElementById('profile-created').textContent = u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—';
+        })
+        .catch(function (err) {
+          loadingEl.style.display = 'none';
+          errorEl.style.display = 'block';
+          errorEl.textContent = err.error || 'Could not load profile.';
+          if (err.status === 401 || err.status === 403) {
+            clearToken();
+            setTimeout(function () { window.location.href = 'login.html'; }, 1500);
+          }
+        });
+
+      document.getElementById('profile-logout').addEventListener('click', function (e) {
+        e.preventDefault();
+        apiRequest('/logout', { method: 'POST' }).catch(function () {});
+        clearToken();
+        window.location.href = 'login.html';
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -11,11 +11,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
     // Clean input
     $username = strtolower($username);
 }
-$sql = "INSERT INTO users (userame,email,password)
+$sql = "INSERT INTO users (username,email,password)
         VALUES ('$username','$email', '$password')";
 
 if (mysqli_query($conn, $sql)) {
-    echo "Details submitted successfully";
+    echo "go to login page";
+    // Redirect to login page after successful signup
+    header("Location: login.html");
+    exit();
 } else {
     echo "Error: " . mysqli_error($conn);
 }

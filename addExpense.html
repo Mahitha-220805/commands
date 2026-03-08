@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add expense — Wallet</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="auth.js"></script>
+  <style>
+    .expense-links { display: flex; gap: 0.75rem; margin-bottom: 1rem; }
+    .expense-links a { color: var(--accent-deep); font-size: 0.9375rem; font-weight: 500; text-decoration: none; }
+    .expense-links a:hover { text-decoration: underline; }
+    .form-group select, .form-group textarea { width: 100%; padding: 0.875rem 1rem; background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; color: var(--text-primary); font-size: 1rem; font-family: inherit; }
+    .form-group textarea { min-height: 80px; resize: vertical; }
+  </style>
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-container">
+      <a href="login.html" class="back-link">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        Back
+      </a>
+
+      <div class="logo">
+        <div class="logo-icon">W</div>
+        <span class="logo-text">Wallet</span>
+      </div>
+
+      <div class="auth-card">
+        <div class="expense-links">
+          <a href="expenseList.html">View expenses</a>
+        </div>
+        <h1>Add expense</h1>
+        <p class="subtitle">Record a new expense</p>
+
+        <form id="expense-form" novalidate>
+          <div class="form-group">
+            <label for="amount">Amount</label>
+            <input type="number" id="amount" name="amount" placeholder="0.00" min="0" step="0.01" required>
+            <span class="error-msg" id="amount-error"></span>
+          </div>
+          <div class="form-group">
+            <label for="category">Category</label>
+            <select id="category" name="category">
+              <option value="Food">Food</option>
+              <option value="Transport">Transport</option>
+              <option value="Shopping">Shopping</option>
+              <option value="Bills">Bills</option>
+              <option value="Entertainment">Entertainment</option>
+              <option value="Health">Health</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="description">Description (optional)</label>
+            <textarea id="description" name="description" placeholder="e.g. Lunch at cafe"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="date">Date</label>
+            <input type="date" id="date" name="date" required>
+            <span class="error-msg" id="date-error"></span>
+          </div>
+          <button type="submit" class="btn-primary">Add expense</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      if (!isLoggedIn()) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      document.getElementById('date').value = new Date().toISOString().slice(0, 10);
+
+      const form = document.getElementById('expense-form');
+      const amountInput = document.getElementById('amount');
+      const amountError = document.getElementById('amount-error');
+
+      function setError(el, msg) {
+        el.classList.add('error');
+        amountError.textContent = msg;
+      }
+      function clearError() {
+        amountInput.classList.remove('error');
+        amountError.textContent = '';
+      }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        clearError();
+        const amount = amountInput.value.trim();
+        if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+          setError(amountInput, 'Please enter a valid amount.');
+          return;
+        }
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Adding…';
+
+        apiRequest('/expense/add', {
+          method: 'POST',
+          body: JSON.stringify({
+            amount: Number(amount),
+            category: document.getElementById('category').value,
+            description: document.getElementById('description').value.trim(),
+            date: document.getElementById('date').value,
+          }),
+        })
+          .then(function () {
+            window.location.href = 'expenseList.html';
+          })
+          .catch(function (err) {
+            setError(amountInput, err.error || 'Failed to add expense.');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Add expense';
+          });
+      });
+    })();
+  </script>
+</body>
+</html>

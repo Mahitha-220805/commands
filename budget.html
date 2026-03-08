@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Budget — Wallet</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="auth.js"></script>
+  <style>
+    .budget-container { max-width: 560px; margin: 0 auto; }
+    .budget-section { margin-bottom: 2rem; }
+    .budget-section h2 { font-size: 1.125rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-primary); }
+    .budget-section .subtitle { color: var(--text-secondary); font-size: 0.9375rem; margin-bottom: 1rem; }
+    .form-group select, .form-group input { width: 100%; padding: 0.875rem 1rem; background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; color: var(--text-primary); font-size: 1rem; font-family: inherit; }
+    .form-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .form-row .form-group { flex: 1; min-width: 120px; }
+    .status-table { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+    .status-table th, .status-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+    .status-table th { color: var(--text-secondary); font-weight: 500; font-size: 0.8125rem; }
+    .status-table tr.exceeded { background: rgba(199, 92, 111, 0.08); }
+    .status-table .percent { font-weight: 600; }
+    .status-table .percent.ok { color: var(--success); }
+    .status-table .percent.warning { color: #c9a227; }
+    .status-table .percent.exceeded { color: var(--error); }
+    .alerts-list { list-style: none; }
+    .alerts-list li { padding: 0.75rem 1rem; border-radius: 12px; margin-bottom: 0.5rem; font-size: 0.9375rem; display: flex; align-items: center; gap: 0.5rem; }
+    .alerts-list li.exceeded { background: rgba(199, 92, 111, 0.15); color: var(--error); border: 1px solid rgba(199, 92, 111, 0.3); }
+    .alerts-list li.warning { background: rgba(201, 162, 39, 0.12); color: #a68a1f; border: 1px solid rgba(201, 162, 39, 0.3); }
+    .alerts-list .alert-badge { font-weight: 700; font-size: 0.75rem; text-transform: uppercase; }
+    .budget-loading, .budget-error, .budget-empty { text-align: center; color: var(--text-secondary); padding: 1rem; font-size: 0.9375rem; }
+    .budget-error { color: var(--error); }
+    .month-picker { margin-bottom: 1rem; }
+    .month-picker label { font-size: 0.875rem; color: var(--text-secondary); margin-right: 0.5rem; }
+    .month-picker input { padding: 0.5rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-input); color: var(--text-primary); }
+  </style>
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-container">
+      <a href="login.html" class="back-link">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        Back
+      </a>
+
+      <div class="logo">
+        <div class="logo-icon">W</div>
+        <span class="logo-text">Wallet</span>
+      </div>
+
+      <div class="auth-card budget-container">
+        <h1>Budget</h1>
+        <p class="subtitle">Set monthly category budgets and track spending</p>
+
+        <div class="budget-section">
+          <h2>Set category budget</h2>
+          <form id="set-budget-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="budget-category">Category</label>
+                <select id="budget-category" name="category" required>
+                  <option value="Food">Food</option>
+                  <option value="Transport">Transport</option>
+                  <option value="Shopping">Shopping</option>
+                  <option value="Bills">Bills</option>
+                  <option value="Entertainment">Entertainment</option>
+                  <option value="Health">Health</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="budget-amount">Monthly limit ($)</label>
+                <input type="number" id="budget-amount" name="amount" placeholder="0" min="0" step="0.01" required>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="budget-month">Month</label>
+              <input type="month" id="budget-month" name="month" required>
+            </div>
+            <button type="submit" class="btn-primary">Set budget</button>
+          </form>
+        </div>
+
+        <div class="budget-section">
+          <h2>Spending vs budget</h2>
+          <div class="month-picker">
+            <label for="status-month">Month:</label>
+            <input type="month" id="status-month">
+          </div>
+          <div id="status-loading" class="budget-loading">Loading…</div>
+          <div id="status-error" class="budget-error" style="display: none;"></div>
+          <div id="status-empty" class="budget-empty" style="display: none;">Set a budget above to see status.</div>
+          <div id="status-content" style="display: none;">
+            <table class="status-table">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Budget</th>
+                  <th>Spent</th>
+                  <th>Remaining</th>
+                  <th>%</th>
+                </tr>
+              </thead>
+              <tbody id="status-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="budget-section">
+          <h2>Alerts</h2>
+          <p class="subtitle">Warnings when you exceed or approach your budget</p>
+          <div id="alerts-loading" class="budget-loading">Loading…</div>
+          <div id="alerts-error" class="budget-error" style="display: none;"></div>
+          <div id="alerts-empty" class="budget-empty" style="display: none;">No alerts for this month.</div>
+          <ul id="alerts-list" class="alerts-list" style="display: none;"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      if (!isLoggedIn()) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      var currentMonth = new Date().toISOString().slice(0, 7);
+      document.getElementById('budget-month').value = currentMonth;
+      document.getElementById('status-month').value = currentMonth;
+
+      document.getElementById('status-month').addEventListener('change', function () {
+        loadStatus(this.value);
+        loadAlerts(this.value);
+      });
+
+      document.getElementById('set-budget-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var amount = document.getElementById('budget-amount').value.trim();
+        if (!amount || isNaN(Number(amount)) || Number(amount) < 0) {
+          alert('Please enter a valid amount.');
+          return;
+        }
+        var month = document.getElementById('budget-month').value;
+        if (!month) month = currentMonth;
+        var submitBtn = this.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving…';
+        apiRequest('/budget/set', {
+          method: 'POST',
+          body: JSON.stringify({
+            category: document.getElementById('budget-category').value,
+            amount: Number(amount),
+            month: month,
+          }),
+        })
+          .then(function () {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Set budget';
+            document.getElementById('budget-amount').value = '';
+            loadStatus(month);
+            loadAlerts(month);
+          })
+          .catch(function (err) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Set budget';
+            alert(err.error || 'Failed to set budget.');
+          });
+      });
+
+      function loadStatus(month) {
+        month = month || document.getElementById('status-month').value || currentMonth;
+        var loadingEl = document.getElementById('status-loading');
+        var errorEl = document.getElementById('status-error');
+        var emptyEl = document.getElementById('status-empty');
+        var contentEl = document.getElementById('status-content');
+        var tbody = document.getElementById('status-tbody');
+
+        loadingEl.style.display = 'block';
+        errorEl.style.display = 'none';
+        emptyEl.style.display = 'none';
+        contentEl.style.display = 'none';
+
+        apiRequest('/budget/status?month=' + encodeURIComponent(month))
+          .then(function (data) {
+            loadingEl.style.display = 'none';
+            if (!data.status || data.status.length === 0) {
+              emptyEl.style.display = 'block';
+              return;
+            }
+            contentEl.style.display = 'block';
+            function fmt(n) { return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+            tbody.innerHTML = data.status.map(function (s) {
+              var pClass = s.exceeded ? 'exceeded' : (s.percent >= 80 ? 'warning' : 'ok');
+              var rowClass = s.exceeded ? ' class="exceeded"' : '';
+              return '<tr' + rowClass + '>' +
+                '<td>' + s.category + '</td>' +
+                '<td>$' + fmt(s.limit) + '</td>' +
+                '<td>$' + fmt(s.spent) + '</td>' +
+                '<td>$' + fmt(s.remaining) + '</td>' +
+                '<td class="percent ' + pClass + '">' + s.percent + '%</td>' +
+                '</tr>';
+            }).join('');
+          })
+          .catch(function (err) {
+            loadingEl.style.display = 'none';
+            errorEl.style.display = 'block';
+            errorEl.textContent = err.error || 'Could not load status.';
+            if (err.status === 401 || err.status === 403) {
+              clearToken();
+              setTimeout(function () { window.location.href = 'login.html'; }, 1500);
+            }
+          });
+      }
+
+      function loadAlerts(month) {
+        month = month || document.getElementById('status-month').value || currentMonth;
+        var loadingEl = document.getElementById('alerts-loading');
+        var errorEl = document.getElementById('alerts-error');
+        var emptyEl = document.getElementById('alerts-empty');
+        var listEl = document.getElementById('alerts-list');
+
+        loadingEl.style.display = 'block';
+        errorEl.style.display = 'none';
+        emptyEl.style.display = 'none';
+        listEl.style.display = 'none';
+
+        apiRequest('/budget/alerts?month=' + encodeURIComponent(month))
+          .then(function (data) {
+            loadingEl.style.display = 'none';
+            if (!data.alerts || data.alerts.length === 0) {
+              emptyEl.style.display = 'block';
+              return;
+            }
+            listEl.style.display = 'block';
+            listEl.innerHTML = data.alerts.map(function (a) {
+              return '<li class="' + a.type + '">' +
+                '<span class="alert-badge">' + (a.type === 'exceeded' ? 'Exceeded' : 'Warning') + '</span>' +
+                '<span><strong>' + a.category + '</strong>: ' + a.message + '</span>' +
+                '</li>';
+            }).join('');
+          })
+          .catch(function (err) {
+            loadingEl.style.display = 'none';
+            errorEl.style.display = 'block';
+            errorEl.textContent = err.error || 'Could not load alerts.';
+          });
+      }
+
+      loadStatus();
+      loadAlerts();
+    })();
+  </script>
+</body>
+</html>
